@@ -2,6 +2,7 @@
 
 APP_STYLESHEET = """
             QMainWindow, QWidget#central { background-color: #070c15; }
+            QDialog { background-color: #070c15; }
             QWidget { color: #e6edf7; }
             QLabel { background: transparent; }
 

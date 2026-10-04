@@ -5,7 +5,8 @@ from datetime import datetime
 
 
 class EventLog:
-    FIELDS = ["time", "event", "object", "track_id", "confidence", "zone"]
+    FIELDS = ["time", "event", "object", "track_id", "confidence", "zone",
+              "snapshot"]
 
     def __init__(self, max_events=100):
         self.items = []  # newest first
@@ -14,7 +15,7 @@ class EventLog:
     def __len__(self):
         return len(self.items)
 
-    def add(self, event_type, class_name, track_id, confidence):
+    def add(self, event_type, class_name, track_id, confidence, snapshot=None):
         event = {
             "time": datetime.now().strftime("%H:%M:%S"),
             "event": event_type,
@@ -22,6 +23,7 @@ class EventLog:
             "track_id": track_id,
             "confidence": confidence,
             "zone": "ENTERED" if event_type == "INTRUSION" else "EXITED",
+            "snapshot": snapshot,
         }
         self.items.insert(0, event)
         del self.items[self.max_events:]
@@ -37,5 +39,5 @@ class EventLog:
             for e in reversed(self.items):  # oldest first
                 writer.writerow(
                     [e["time"], e["event"], e["object"], e["track_id"],
-                     f'{e["confidence"]:.3f}', e["zone"]]
+                     f'{e["confidence"]:.3f}', e["zone"], e.get("snapshot") or ""]
                 )

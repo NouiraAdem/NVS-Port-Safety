@@ -2,12 +2,15 @@
 
 from datetime import datetime
 
+from pathlib import Path
+
 import cv2
 
 from PySide6.QtCore import Qt, QTimer
-from PySide6.QtGui import QColor, QFont, QImage
+from PySide6.QtGui import QColor, QFont, QImage, QPixmap
 from PySide6.QtWidgets import (
     QApplication,
+    QDialog,
     QFileDialog,
     QFrame,
     QGridLayout,
@@ -33,11 +36,15 @@ from config.app_config import (
     INFERENCE_SIZE,
     MAX_EVENTS,
     PERSON_CONFIDENCE,
+    SNAPSHOT_DIR,
+    SNAPSHOT_ENABLED,
+    SNAPSHOT_JPEG_QUALITY,
     ZONE_ENTER_FRAMES,
     ZONE_EXIT_FRAMES,
 )
 from core.detector import ObjectDetector
 from core.event_log import EventLog
+from core.snapshot import save_intrusion_snapshot
 from core.zone_monitor import ZoneMonitor
 from ui.styles import APP_STYLESHEET
 from ui.video_widget import VideoWidget
@@ -388,7 +395,10 @@ class MainWindow(QMainWindow):
         tb.setSpacing(1)
         title = QLabel("Security Event Log")
         title.setObjectName("cardTitle")
-        sub = QLabel("Stable zone entries and exits  •  newest events first")
+        sub = QLabel(
+            "Stable zone entries and exits  •  newest first  •  "
+            "double-click an event to view its snapshot"
+        )
         sub.setObjectName("muted")
         tb.addWidget(title)
         tb.addWidget(sub)
@@ -403,10 +413,12 @@ class MainWindow(QMainWindow):
         head.addWidget(self.event_count_label)
         layout.addLayout(head)
 
-        self.event_table = QTableWidget(0, 6)
+        self.event_table = QTableWidget(0, 7)
         self.event_table.setObjectName("eventTable")
+        self.event_table.cellDoubleClicked.connect(self.show_snapshot)
         self.event_table.setHorizontalHeaderLabels(
-            ["TIME", "EVENT", "OBJECT", "TRACK ID", "CONFIDENCE", "ZONE"]
+            ["TIME", "EVENT", "OBJECT", "TRACK ID", "CONFIDENCE", "ZONE",
+             "SNAPSHOT"]
         )
         self.event_table.setEditTriggers(
             QTableWidget.EditTrigger.NoEditTriggers
@@ -547,6 +559,11 @@ class MainWindow(QMainWindow):
                 str(event["track_id"]),
                 f'{event["confidence"] * 100:.1f}%',
                 event["zone"],
+                (
+                    Path(event["snapshot"]).name
+                    if event.get("snapshot")
+                    else "—"
+                ),
             ]
 
             for column, value in enumerate(values):
@@ -564,6 +581,10 @@ class MainWindow(QMainWindow):
                 elif column == 5:
                     item.setForeground(
                         QColor("#fca5a5" if is_intrusion else "#86efac")
+                    )
+                elif column == 6:
+                    item.setForeground(
+                        QColor("#22d3ee" if event.get("snapshot") else "#5f7390")
                     )
                 self.event_table.setItem(row, column, item)
 
@@ -626,16 +647,63 @@ class MainWindow(QMainWindow):
         self.edit_zone_button.setChecked(False)
         self.status_label.setText("Safety zone updated.")
 
-    def process_zone(self, detections):
+    def process_zone(self, detections, frame=None):
         intruders, new_events = self.zone.update(detections)
 
-        for event in new_events:
-            self.events.add(*event)
+        for event_type, class_name, track_id, confidence in new_events:
+            snapshot = None
+
+            if (
+                SNAPSHOT_ENABLED
+                and frame is not None
+                and event_type == "INTRUSION"
+            ):
+                snapshot = save_intrusion_snapshot(
+                    frame,
+                    self.zone.rect,
+                    class_name,
+                    track_id,
+                    confidence,
+                    SNAPSHOT_DIR,
+                    SNAPSHOT_JPEG_QUALITY,
+                )
+
+            self.events.add(
+                event_type, class_name, track_id, confidence, snapshot
+            )
 
         if new_events:
             self.refresh_event_table()
 
         return intruders
+
+    def show_snapshot(self, row, _column):
+        if row >= len(self.events.items):
+            return
+
+        path = self.events.items[row].get("snapshot")
+        if not path or not Path(path).exists():
+            self.status_label.setText("No snapshot for this event.")
+            return
+
+        pixmap = QPixmap(path)
+        if pixmap.isNull():
+            return
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle(Path(path).name)
+        layout = QVBoxLayout(dialog)
+        label = QLabel()
+        label.setPixmap(
+            pixmap.scaled(
+                900,
+                680,
+                Qt.AspectRatioMode.KeepAspectRatio,
+                Qt.TransformationMode.SmoothTransformation,
+            )
+        )
+        layout.addWidget(label)
+        dialog.exec()
 
     # =========================================================
     # IMAGE MODE
@@ -758,7 +826,7 @@ class MainWindow(QMainWindow):
 
         self.update_dashboard(detections)
 
-        intruders = self.process_zone(detections)
+        intruders = self.process_zone(detections, frame)
         alarm = bool(intruders)
         self.update_zone_visuals(alarm, intruders)
 

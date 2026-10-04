@@ -1,5 +1,9 @@
 """Application constants for NVS Port Safety."""
 
+from pathlib import Path
+
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
 # Camera
 CAMERA_DEVICE = "/dev/video0"
 FRAME_W, FRAME_H = 640, 480
@@ -19,3 +23,8 @@ PERSON_CONFIDENCE = 0.60
 
 # Max events kept in the in-memory log.
 MAX_EVENTS = 100
+
+# Automatic snapshot saved at every INTRUSION event.
+SNAPSHOT_ENABLED = True
+SNAPSHOT_DIR = PROJECT_ROOT / "storage" / "snapshots"
+SNAPSHOT_JPEG_QUALITY = 90

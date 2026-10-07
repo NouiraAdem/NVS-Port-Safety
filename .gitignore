@@ -4,3 +4,4 @@ __pycache__/
 *.pyc
 storage/
 models/*_openvino_model/
+data/

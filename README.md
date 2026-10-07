@@ -11,8 +11,6 @@ This project is the prototype for my graduation thesis on object recognition bas
 - Automatic snapshots when an intrusion is detected
 - Desktop interface built with PySide6
 <<<<<<< HEAD
-- Runs on CPU only (no GPU required): about 15-20 FPS in my tests, depending on hardware
-=======
 - Runs on CPU only (no GPU required): about 20 FPS in my tests, depending on hardware
 >>>>>>> 2b5bb38 (Update FPS)
 - Benchmark tool for measuring performance (`tools/benchmark.py`)
